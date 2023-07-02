@@ -3,10 +3,9 @@
 
 mod clusterer;
 mod point;
-mod ball_tree;
 
-use crate::clusterer::Clusterer;
-use crate::point::Point;
+use clusterer::Clusterer;
+use point::Point;
 
 fn main() {
     println!("Hello, world!");
