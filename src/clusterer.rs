@@ -1,3 +1,4 @@
+use crate::ball_tree::BallTree;
 use crate::point::Point;
 
 pub struct ClusteredPoint<'a> {
@@ -24,31 +25,26 @@ impl<'a> ClusteredPoint<'a> {
 
 pub struct Clusterer<'a> {
     points: Vec<ClusteredPoint<'a>>,
-
-    leaf_size: usize,
+    spatial_index_root: Box<BallTree<'a>>,
 }
 
 impl<'a> Clusterer<'a> {
-    pub fn new() -> Clusterer<'a> {
-        Clusterer {
-            points: vec![],
-            leaf_size: 50,
+    pub fn new(data: &'a [Point], leaf_size: usize) -> Clusterer {
+    //pub fn new(data: &'a Vec<Point>, leaf_size: usize) -> Clusterer {
+        
+        let mut data_ref : Vec<&Point> = vec![];
+        for point in data.iter() {
+            data_ref.push(point);
         }
-    }
-
-    pub fn from_data(data: &'a Vec<Point>) -> Clusterer {
+            
         Clusterer {
             points: data
                 .iter()
-                .map(|point| ClusteredPoint::from(point))
+                .map(ClusteredPoint::from)
                 .collect(),
-
-            leaf_size: 50,
+            
+            spatial_index_root: BallTree::create_ball_tree(&mut data_ref, leaf_size),
         }
-    }
-
-    pub fn set_leaf_size(&'a mut self, leaf_size: usize) {
-        self.leaf_size = leaf_size;
     }
 
     pub fn count(&self) -> usize {
