@@ -1,4 +1,3 @@
-
 use std::cmp::min;
 pub struct Point {
     coordinate: Vec<f64>,
@@ -15,6 +14,14 @@ impl Point {
 
     pub fn num_dimensions(&self) -> usize {
         self.coordinate.len()
+    }
+
+    pub fn get(&self, idx: usize) -> f64 {
+        self.coordinate[idx]
+    }
+
+    pub fn set(&mut self, idx: usize, value: f64) {
+        self.coordinate[idx] = value;
     }
 
     pub fn distance_to(&self, other: &Point) -> f64 {

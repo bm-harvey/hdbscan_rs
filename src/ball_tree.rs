@@ -37,40 +37,31 @@ impl<'a> BallTree<'a> {
 
     // ctor fns
     pub fn new(data: &mut Vec<&'a Point>, leaf_size: usize) -> Box<BallTree<'a>> {
+        let pivot = BallTree::pivot_from_data(data);
+        let radius = BallTree::radius_from_data(data, &pivot);
+
         if data.len() < min(leaf_size, 3) {
             Box::new(BallTree::Leaf(LeafData {
                 member_data: data
                     .iter()
                     .map(|point| ClusteredPoint::from(point))
                     .collect(),
-                pivot: Point::new(),
-                radius: 0.,
+                pivot,
+                radius,
             }))
         } else {
             let random_point = data[0];
+              
+            let point_1: &Point = data
+                .iter()
+                .max_by(|x, y| x.distance_to(random_point).total_cmp(&y.distance_to(random_point)))
+                .unwrap();
 
-            let mut point_1 = data[1];
-            let mut max_distance = point_1.distance_to(random_point);
-
-            for point in data.iter() {
-                let distance: f64 = point.distance_to(random_point);
-                if distance > max_distance {
-                    max_distance = distance;
-                    point_1 = point;
-                }
-            }
-
-            let mut point_2 = data[0];
-            let mut max_distance = point_1.distance_to(random_point);
-
-            for point in data.iter() {
-                let distance: f64 = point.distance_to(random_point);
-
-                if distance > max_distance {
-                    max_distance = distance;
-                    point_2 = point;
-                }
-            }
+            let point_2: &Point = data
+                .iter()
+                .max_by(|x, y| x.distance_to(point_1).total_cmp(&y.distance_to(point_1)))
+                .unwrap();
+            
 
             data.sort_unstable_by(|x, y| {
                 let xr_1 = x.distance_to(point_1);
@@ -95,12 +86,32 @@ impl<'a> BallTree<'a> {
                     BallTree::new(&mut vec_0, leaf_size),
                     BallTree::new(&mut vec_1, leaf_size),
                 ),
-                radius: 0.,
-                pivot: Point::new(),
+                radius,
+                pivot,
             }))
         } // else
     } // new
-    
+
+    fn pivot_from_data(data: &[&Point]) -> Point {
+        let dims = data[0].num_dimensions();
+        let mut pivot = Point::from(vec![0.; dims]);
+
+        for idx in 0..dims {
+            pivot.set(
+                idx,
+                data.iter().map(|point| point.get(idx)).sum::<f64>() / (data.len() as f64),
+            );
+        }
+        pivot
+    }
+
+    fn radius_from_data(data: &[&Point], pivot: &Point) -> f64 {
+        data.iter()
+            .map(|x| x.distance_to(pivot))
+            .max_by(|x, y| x.total_cmp(y))
+            .unwrap_or(std::f64::MAX)
+    }
+
     pub fn iter(&'a self) -> BallTreeItr<'a> {
         match self {
             BallTree::Branch(tree) => BallTreeItr::Branch(BranchItrData {
