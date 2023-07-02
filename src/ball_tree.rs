@@ -36,7 +36,7 @@ impl<'a> BallTree<'a> {
     }
 
     // ctor fns
-    pub fn create_ball_tree(data: &mut Vec<&'a Point>, leaf_size: usize) -> Box<BallTree<'a>> {
+    pub fn new(data: &mut Vec<&'a Point>, leaf_size: usize) -> Box<BallTree<'a>> {
         if data.len() < min(leaf_size, 3) {
             Box::new(BallTree::Leaf(LeafData {
                 member_data: data.iter().map(|point| ClusteredPoint::from(point)).collect(),
@@ -90,8 +90,8 @@ impl<'a> BallTree<'a> {
 
             Box::new(BallTree::Branch(BranchData {
                 children: (
-                    BallTree::create_ball_tree(&mut vec_0, leaf_size),
-                    BallTree::create_ball_tree(&mut vec_1, leaf_size),
+                    BallTree::new(&mut vec_0, leaf_size),
+                    BallTree::new(&mut vec_1, leaf_size),
                 ),
                 radius: 0.,
                 pivot: Point::new(),

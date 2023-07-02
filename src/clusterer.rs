@@ -43,7 +43,7 @@ impl<'a> Clusterer<'a> {
                 .map(ClusteredPoint::from)
                 .collect(),
             
-            spatial_index_root: BallTree::create_ball_tree(&mut data_ref, leaf_size),
+            spatial_index_root: BallTree::new(&mut data_ref, leaf_size),
         }
     }
 
