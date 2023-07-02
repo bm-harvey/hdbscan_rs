@@ -39,8 +39,10 @@ impl<'a> BallTree<'a> {
     pub fn new(data: &mut Vec<&'a Point>, leaf_size: usize) -> Box<BallTree<'a>> {
         if data.len() < min(leaf_size, 3) {
             Box::new(BallTree::Leaf(LeafData {
-                member_data: data.iter().map(|point| ClusteredPoint::from(point)).collect(),
-                //member_data: data.iter().map(ClusteredPoint::from).collect(),
+                member_data: data
+                    .iter()
+                    .map(|point| ClusteredPoint::from(point))
+                    .collect(),
                 pivot: Point::new(),
                 radius: 0.,
             }))
@@ -96,7 +98,68 @@ impl<'a> BallTree<'a> {
                 radius: 0.,
                 pivot: Point::new(),
             }))
-
+        } // else
+    } // new
+    
+    pub fn iter(&'a self) -> BallTreeItr<'a> {
+        match self {
+            BallTree::Branch(tree) => BallTreeItr::Branch(BranchItrData {
+                data: tree,
+                child_is_left: true,
+                child_itr: Box::new(tree.children.0.iter()),
+            }),
+            BallTree::Leaf(tree) => BallTreeItr::Leaf(LeafItrData {
+                data: tree,
+                counter: 0,
+            }),
         }
     }
+} // impl BallTree
+
+pub struct BranchItrData<'a> {
+    data: &'a BranchData<'a>,
+    child_is_left: bool,
+    child_itr: Box<BallTreeItr<'a>>,
 }
+pub struct LeafItrData<'a> {
+    data: &'a LeafData<'a>,
+    counter: usize,
+}
+pub enum BallTreeItr<'a> {
+    Branch(BranchItrData<'a>),
+    Leaf(LeafItrData<'a>),
+}
+
+impl<'a> Iterator for BallTreeItr<'a> {
+    type Item = &'a ClusteredPoint<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            BallTreeItr::Branch(itr) => {
+                let result = itr.child_itr.next();
+                match result {
+                    None => {
+                        if itr.child_is_left {
+                            itr.child_is_left = false;
+                            itr.child_itr = Box::new(itr.data.children.1.iter());
+                            itr.child_itr.next()
+                        } else {
+                            None
+                        }
+                    }
+                    Some(res) => Some(res),
+                }
+            }
+            BallTreeItr::Leaf(itr) => {
+                let index = itr.counter;
+                let pc = &itr.data.member_data;
+                if index < pc.len() {
+                    itr.counter += 1;
+                    Some(&pc[index])
+                } else {
+                    None
+                }
+            }
+        } // match
+    } // fn next
+} // impl Iterator for BallTreeIter
