@@ -35,6 +35,8 @@ impl<'a> BallTree<'a> {
         }
     }
 
+    pub fn set_k_nearest_neighbors(&mut self, point: &mut ClusteredPoint, param_k: usize) {}
+
     // ctor fns
     pub fn new(data: &mut Vec<&'a Point>, leaf_size: usize) -> Box<BallTree<'a>> {
         let pivot = BallTree::pivot_from_data(data);
@@ -51,24 +53,29 @@ impl<'a> BallTree<'a> {
             }))
         } else {
             let random_point = data[0];
-              
+
             let point_1: &Point = data
                 .iter()
-                .max_by(|x, y| x.distance_to(random_point).total_cmp(&y.distance_to(random_point)))
+                .max_by(|x, y| {
+                    x.distance_to_sqr(random_point)
+                        .total_cmp(&y.distance_to_sqr(random_point))
+                })
                 .unwrap();
 
             let point_2: &Point = data
                 .iter()
-                .max_by(|x, y| x.distance_to(point_1).total_cmp(&y.distance_to(point_1)))
+                .max_by(|x, y| {
+                    x.distance_to_sqr(point_1)
+                        .total_cmp(&y.distance_to_sqr(point_1))
+                })
                 .unwrap();
-            
 
             data.sort_unstable_by(|x, y| {
-                let xr_1 = x.distance_to(point_1);
-                let xr_2 = x.distance_to(point_2);
+                let xr_1 = x.distance_to_sqr(point_1);
+                let xr_2 = x.distance_to_sqr(point_2);
 
-                let yr_1 = y.distance_to(point_1);
-                let yr_2 = y.distance_to(point_2);
+                let yr_1 = y.distance_to_sqr(point_1);
+                let yr_2 = y.distance_to_sqr(point_2);
 
                 let v_1 = (xr_1 - xr_2) / (xr_1 + xr_2);
                 let v_2 = (yr_1 - yr_2) / (yr_1 + yr_2);

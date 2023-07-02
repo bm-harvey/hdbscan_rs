@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-mod clusterer;
 mod ball_tree;
+mod clusterer;
 mod point;
 
 use clusterer::Clusterer;
@@ -16,5 +16,5 @@ fn main() {
         data.push(Point::from(vec![1., 2., 3.]));
     }
 
-    let clust = Clusterer::new(&data, 50);
+    let clust = Clusterer::builder(&data).with_leaf_size(30).build();
 }
