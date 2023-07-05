@@ -1,4 +1,10 @@
-use std::cmp::min;
+//use std::borrow::Borrow;
+//use std::borrow::BorrowMut;
+//use std::cell::Ref;
+use std::cell::RefCell;
+//use std::cell::RefMut;
+use std::cmp::max;
+use std::rc::Rc;
 
 use crate::clusterer::ClusteredPoint;
 use crate::point::Point;
@@ -8,8 +14,11 @@ pub struct BranchData<'a> {
     radius: f64,
     pivot: Point,
 }
+
+type Rcc<T> = Rc<RefCell<T>>;
+
 pub struct LeafData<'a> {
-    member_data: Vec<ClusteredPoint<'a>>,
+    member_data: Vec<RefCell<ClusteredPoint<'a>>>,
     radius: f64,
     pivot: Point,
 }
@@ -28,6 +37,14 @@ impl<'a> BallTree<'a> {
         }
     }
 
+    pub fn set_k_neareset_neigbors(&'a mut self, param_k: usize) {
+        for point_ref in self.iter() {
+            point_ref
+                .borrow_mut()
+                .clear_neighbors()
+                .set_neighbor_capacity(param_k);
+        }
+    }
     pub fn radius(&self) -> f64 {
         match self {
             BallTree::Leaf(leaf) => leaf.radius,
@@ -35,18 +52,16 @@ impl<'a> BallTree<'a> {
         }
     }
 
-    pub fn set_k_nearest_neighbors(&mut self, point: &mut ClusteredPoint, param_k: usize) {}
-
     // ctor fns
     pub fn new(data: &mut Vec<&'a Point>, leaf_size: usize) -> Box<BallTree<'a>> {
         let pivot = BallTree::pivot_from_data(data);
         let radius = BallTree::radius_from_data(data, &pivot);
 
-        if data.len() < min(leaf_size, 3) {
+        if data.len() < max(leaf_size, 3) {
             Box::new(BallTree::Leaf(LeafData {
                 member_data: data
                     .iter()
-                    .map(|point| ClusteredPoint::from(point))
+                    .map(|point| RefCell::new(ClusteredPoint::from(point)))
                     .collect(),
                 pivot,
                 radius,
@@ -80,7 +95,7 @@ impl<'a> BallTree<'a> {
                 let v_1 = (xr_1 - xr_2) / (xr_1 + xr_2);
                 let v_2 = (yr_1 - yr_2) / (yr_1 + yr_2);
 
-                v_2.partial_cmp(&v_2).unwrap_or(std::cmp::Ordering::Equal)
+                v_1.partial_cmp(&v_2).unwrap_or(std::cmp::Ordering::Equal)
             });
 
             let half_index = data.len() / 2;
@@ -149,7 +164,7 @@ pub enum BallTreeItr<'a> {
 }
 
 impl<'a> Iterator for BallTreeItr<'a> {
-    type Item = &'a ClusteredPoint<'a>;
+    type Item = &'a RefCell<ClusteredPoint<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -170,10 +185,10 @@ impl<'a> Iterator for BallTreeItr<'a> {
             }
             BallTreeItr::Leaf(itr) => {
                 let index = itr.counter;
-                let pc = &itr.data.member_data;
-                if index < pc.len() {
+                let point_cloud = &itr.data.member_data;
+                if index < point_cloud.len() {
                     itr.counter += 1;
-                    Some(&pc[index])
+                    Some(&point_cloud[index])
                 } else {
                     None
                 }

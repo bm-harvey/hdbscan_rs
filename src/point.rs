@@ -1,4 +1,6 @@
 use std::cmp::min;
+
+#[derive(Debug)]
 pub struct Point {
     coordinate: Vec<f64>,
 }
