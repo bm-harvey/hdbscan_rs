@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Point {
@@ -36,7 +37,7 @@ impl Point {
             .sqrt()
     }
 
-    pub fn distance_to_sqr(&self, other: &Point) -> f64 {
+    pub fn distance_to_sqr(&self, other: &Rc<Point>) -> f64 {
         let dims = min(self.num_dimensions(), other.num_dimensions());
 
         (0..dims)

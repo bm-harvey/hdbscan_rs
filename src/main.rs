@@ -11,20 +11,24 @@ mod point;
 use clusterer::Clusterer;
 use point::Point;
 
+use std::rc::Rc;
+
 fn main() {
-    let num_points: usize = 10000000;
+    let num_points: usize = 10_000;
     let mut rng = rand::thread_rng();
 
-    let mut data: Vec<Point> = vec![];
+    let mut data: Vec<Rc<Point>> = vec![];
     data.reserve(num_points);
     for _ in 0..num_points {
-        data.push(Point::from(vec![rng.gen::<f64>(), rng.gen::<f64>()]));
+        data.push(Rc::new(Point::from(vec![rng.gen::<f64>(), rng.gen::<f64>()])));
     }
 
     let start = Instant::now();
-    let leaf_size = 40* (num_points as f64).log2() as usize;
+    //let leaf_size = 40 * (num_points as f64).log2() as usize;
+    let leaf_size = 40;
     println!("leaf_size = {}", leaf_size);
-    let cluster_result = Clusterer::new(&data).with_leaf_size(leaf_size).fit();
+    let clusterer = Clusterer::new(&data).with_leaf_size(leaf_size);
+    let cluster_result = clusterer.fit();
 
     let elapsed_sec = start.elapsed().as_secs();
 
@@ -34,5 +38,8 @@ fn main() {
         counter += 1;
     }
 
-    println!("setting up the ball tree for {} points took {} s", counter, elapsed_sec);
+    println!(
+        "setting up the ball tree for {} points took {} s",
+        counter, elapsed_sec
+    );
 }

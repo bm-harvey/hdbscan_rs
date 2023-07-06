@@ -1,14 +1,20 @@
 use crate::ball_tree::BallTree;
 use crate::point::Point;
 
-pub struct ClusteredPoint<'a> {
-    point: &'a Point,
-    neighbors: Vec<&'a ClusteredPoint<'a>>,
+use std::cell::RefCell;
+use std::rc::Rc;
+
+type PointRef = Rc<Point>;
+
+pub struct ClusteredPoint {
+    point: PointRef,
+    //neighbors: Vec<&'a ClusteredPoint<'a>>,
+    neighbors: Vec<Rc<RefCell<ClusteredPoint>>>,
     cluster_id: u16,
 }
 
-impl<'a> ClusteredPoint<'a> {
-    pub fn from(point: &'a Point) -> ClusteredPoint<'a> {
+impl<'a> ClusteredPoint {
+    pub fn from(point: PointRef) -> ClusteredPoint {
         ClusteredPoint {
             point,
             neighbors: vec![],
@@ -18,8 +24,17 @@ impl<'a> ClusteredPoint<'a> {
     pub fn point(&self) -> &Point {
         &self.point
     }
-    pub fn neighbors(&'a self) -> &'a Vec<&'a ClusteredPoint<'a>> {
+    //pub fn neighbors(&'a self) -> &'a Vec<&'a ClusteredPoint<'a>> {
+    //&self.neighbors
+    //}
+
+    pub fn neighbors(&self) -> &Vec<Rc<RefCell<ClusteredPoint>>> {
         &self.neighbors
+    }
+
+    pub fn set_neighbors(&mut self, neighbors: Vec<Rc<RefCell<ClusteredPoint>>>) -> &mut Self {
+        self.neighbors = neighbors;
+        self
     }
 
     pub fn set_neighbor_capacity(&mut self, capacity: usize) -> &mut Self {
@@ -33,30 +48,34 @@ impl<'a> ClusteredPoint<'a> {
     }
 
     pub fn core_distance(&self) -> f64 {
-        return self.distance_to(self.neighbors.last().unwrap());
+        return self
+            .point()
+            .distance_to(self.neighbors.last().unwrap().borrow().point());
     }
 
     pub fn distance_to(&self, other: &ClusteredPoint) -> f64 {
-        self.point.distance_to(other.point)
+        self.point.distance_to(other.point.as_ref())
     }
 
     pub fn distance_to_sqr(&self, other: &ClusteredPoint) -> f64 {
-        self.point.distance_to(other.point)
+        self.point.distance_to(other.point.as_ref())
     }
 }
 
 pub struct Clusterer<'a> {
     // data
-    point_cloud: &'a [Point],
+    point_cloud: &'a [Rc<Point>],
     // parameters
     leaf_size: usize,
+    param_k: usize,
 }
 
 impl<'a> Clusterer<'a> {
-    pub fn new(data: &'a [Point]) -> Clusterer {
+    pub fn new(data: &'a [Rc<Point>]) -> Clusterer {
         Clusterer {
             point_cloud: data,
             leaf_size: 50,
+            param_k: 15,
         }
     }
 
@@ -65,24 +84,33 @@ impl<'a> Clusterer<'a> {
         self
     }
 
-    pub fn fit(self) -> ClusterResult<'a> {
-        let mut data_refs = self.point_cloud.iter().collect();
-        ClusterResult {
-            spatial_index_root: BallTree::new(&mut data_refs, self.leaf_size),
-        }
+    pub fn fit(self) -> ClusterResult {
+        let mut data_refs = self.point_cloud.iter().map(|x| Rc::clone(x)).collect();
+
+        println!("generating spatial indexing tree");
+        let spatial_index_root = BallTree::new(&mut data_refs, self.leaf_size);
+        spatial_index_root.set_k_neareset_neighbors(self.param_k);
+
+        let result = ClusterResult { spatial_index_root };
+
+        let _size = result.spatial_index_root.size();
+
+        println!("finding {}-nearest neighbors for all data", self.param_k);
+
+        result
     }
 }
 
-pub struct ClusterResult<'a> {
-    spatial_index_root: Box<BallTree<'a>>,
+pub struct ClusterResult {
+    spatial_index_root: Box<BallTree>,
 }
 
-impl<'a> ClusterResult<'a> {
-    pub fn builder(data: &'a [Point]) -> Clusterer {
+impl ClusterResult {
+    pub fn builder(data: &[Rc<Point>]) -> Clusterer {
         Clusterer::new(data)
     }
 
-    pub fn ball_tree(&self) -> &Box<BallTree<'a>> {
+    pub fn ball_tree(&self) -> &Box<BallTree> {
         &self.spatial_index_root
     }
 
