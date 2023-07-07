@@ -42,11 +42,13 @@ impl BallTree {
         // the points list already has k points, and nothing in this ball is close enough
         // to the target point to benifit, so we should return before going further with this node
         // this is the step that saves most of time and makes the query O(klog(n))
-        if at_capacity
-            && self.pivot().distance_to(target_point) - self.radius()
-                > target_point.distance_to(neighbors.last().unwrap().borrow().point())
-        {
-            return;
+        if at_capacity {
+            let ball_is_too_far = self.pivot().distance_to(target_point) - self.radius()
+                > target_point.distance_to(neighbors.last().unwrap().borrow().point());
+
+            if ball_is_too_far {
+                return;
+            }
         }
 
         // there are points in this ball that are closer than some of the points in `neighbors`
@@ -161,12 +163,13 @@ impl BallTree {
                     .unwrap(),
             );
 
-
             data.sort_unstable_by(|x, y| {
                 let x_dist = x.distance_to_sqr(&point_1);
                 let y_dist = y.distance_to_sqr(&point_1);
 
-                x_dist.partial_cmp(&y_dist).unwrap_or(std::cmp::Ordering::Equal)
+                x_dist
+                    .partial_cmp(&y_dist)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
 
             let half_index = data.len() / 2;
