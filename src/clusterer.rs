@@ -8,7 +8,6 @@ type PointRef = Rc<Point>;
 
 pub struct ClusteredPoint {
     point: PointRef,
-    //neighbors: Vec<&'a ClusteredPoint<'a>>,
     neighbors: Vec<Rc<RefCell<ClusteredPoint>>>,
     cluster_id: u16,
 }
@@ -24,9 +23,6 @@ impl ClusteredPoint {
     pub fn point(&self) -> &Point {
         &self.point
     }
-    //pub fn neighbors(&'a self) -> &'a Vec<&'a ClusteredPoint<'a>> {
-    //&self.neighbors
-    //}
 
     pub fn neighbors(&self) -> &Vec<Rc<RefCell<ClusteredPoint>>> {
         &self.neighbors
@@ -119,8 +115,4 @@ impl ClusterResult {
     pub fn ball_tree(&self) -> &BallTree {
         &self.spatial_index_root
     }
-
-    //pub fn ball_tree_iter(&self) -> BallTreeItr {
-    //self.spatial_index_root.iter()
-    //}
 }

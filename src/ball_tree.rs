@@ -33,7 +33,6 @@ impl BallTree {
 
     pub fn find_k_nearest_neighbors(
         &self,
-        //neighbors: &mut Vec<&'a ClusteredPoint<'a>>,
         neighbors: &mut Vec<Rc<RefCell<ClusteredPoint>>>,
         target_point: &Point,
         param_k: usize,
@@ -162,26 +161,12 @@ impl BallTree {
                     .unwrap(),
             );
 
-            //let point_2 = Rc::clone(
-            //data.iter()
-            //.max_by(|x, y| {
-            //x.distance_to_sqr(&point_1)
-            //.total_cmp(&y.distance_to_sqr(&point_1))
-            //})
-            //.unwrap(),
-            //);
 
             data.sort_unstable_by(|x, y| {
-                let xr_1 = x.distance_to_sqr(&point_1);
-                //let xr_2 = x.distance_to(&point_2);
+                let x_dist = x.distance_to_sqr(&point_1);
+                let y_dist = y.distance_to_sqr(&point_1);
 
-                let yr_1 = y.distance_to_sqr(&point_1);
-                //let yr_2 = y.distance_to(&point_2);
-
-                //let relative_diff_1 = (xr_1 - xr_2) / (xr_1 + xr_2);
-                //let relative_diff_2 = (yr_1 - yr_2) / (yr_1 + yr_2);
-
-                xr_1.partial_cmp(&yr_1).unwrap_or(std::cmp::Ordering::Equal)
+                x_dist.partial_cmp(&y_dist).unwrap_or(std::cmp::Ordering::Equal)
             });
 
             let half_index = data.len() / 2;

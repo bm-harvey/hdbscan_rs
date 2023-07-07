@@ -17,7 +17,6 @@ use crate::clusterer::ClusterResult;
 
 fn main() {
     let num_points: usize = 100_000;
-    //let num_points: usize = 100_000;
     let mut rng = rand::thread_rng();
 
     let mut data: Vec<Rc<Point>> = vec![];
@@ -31,8 +30,8 @@ fn main() {
     }
 
     let start = Instant::now();
-    let leaf_size = 40;
-    let param_k = 5;
+    let leaf_size = 100;
+    let param_k = 15;
 
     let clusterer = Clusterer::new(&data)
         .with_leaf_size(leaf_size)
