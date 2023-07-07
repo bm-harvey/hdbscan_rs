@@ -4,6 +4,8 @@ use crate::point::Point;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use std::time::Instant;
+
 type PointRef = Rc<Point>;
 
 pub struct ClusteredPoint {
@@ -88,16 +90,17 @@ impl<'a> Clusterer<'a> {
     pub fn fit(self) -> ClusterResult {
         let mut data_refs = self.point_cloud.iter().map(Rc::clone).collect();
 
-        println!("Generating spatial indexing tree");
+        println!("Generating spatial indexing tree ...");
+        let start = Instant::now();
         let spatial_index_root = BallTree::new(&mut data_refs, self.leaf_size);
+        println!("\tdone in {} s", start.elapsed().as_secs_f32());
 
+        println!("Finding {}-nearest neighbors for all data...", self.param_k);
+        let start = Instant::now();
         spatial_index_root.set_k_neareset_neighbors(self.param_k);
+        println!("\tdone in {} s", start.elapsed().as_secs_f32());
 
         let result = ClusterResult { spatial_index_root };
-
-        let _size = result.spatial_index_root.size();
-
-        println!("Finding {}-nearest neighbors for all data", self.param_k);
 
         result
     }

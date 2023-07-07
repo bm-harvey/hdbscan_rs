@@ -30,8 +30,8 @@ fn main() {
     }
 
     let start = Instant::now();
-    let leaf_size = 100;
-    let param_k = 15;
+    let leaf_size = 10;
+    let param_k = 5;
 
     let clusterer = Clusterer::new(&data)
         .with_leaf_size(leaf_size)
@@ -44,18 +44,15 @@ fn main() {
     let ball_tree = cluster_result.ball_tree();
     let mut counter = 0;
 
-    for _point_ref in ball_tree.iter() {
+    for _point_ref in ball_tree.cluster_points() {
         counter += 1;
     }
 
     let average_core_distance = ball_tree
-        .iter()
+        .cluster_points()
         .map(|x| x.borrow().core_distance())
         .sum::<f64>()
         / (counter as f64);
-
-        
-    
 
     println!(
         "setting up the ball tree for {} points took {} s",
@@ -66,5 +63,4 @@ fn main() {
         "the average core distance for param k = {} is {}.",
         param_k, average_core_distance
     );
-
 }
