@@ -13,7 +13,7 @@ pub struct ClusteredPoint {
     cluster_id: u16,
 }
 
-impl<'a> ClusteredPoint {
+impl ClusteredPoint {
     pub fn from(point: PointRef) -> ClusteredPoint {
         ClusteredPoint {
             point,
@@ -84,18 +84,24 @@ impl<'a> Clusterer<'a> {
         self
     }
 
-    pub fn fit(self) -> ClusterResult {
-        let mut data_refs = self.point_cloud.iter().map(|x| Rc::clone(x)).collect();
+    pub fn with_param_k(mut self, param_k: usize) -> Clusterer<'a> {
+        self.param_k = param_k;
+        self
+    }
 
-        println!("generating spatial indexing tree");
+    pub fn fit(self) -> ClusterResult {
+        let mut data_refs = self.point_cloud.iter().map(Rc::clone).collect();
+
+        println!("Generating spatial indexing tree");
         let spatial_index_root = BallTree::new(&mut data_refs, self.leaf_size);
+
         spatial_index_root.set_k_neareset_neighbors(self.param_k);
 
         let result = ClusterResult { spatial_index_root };
 
         let _size = result.spatial_index_root.size();
 
-        println!("finding {}-nearest neighbors for all data", self.param_k);
+        println!("Finding {}-nearest neighbors for all data", self.param_k);
 
         result
     }
@@ -110,7 +116,7 @@ impl ClusterResult {
         Clusterer::new(data)
     }
 
-    pub fn ball_tree(&self) -> &Box<BallTree> {
+    pub fn ball_tree(&self) -> &BallTree {
         &self.spatial_index_root
     }
 

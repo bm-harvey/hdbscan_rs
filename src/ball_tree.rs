@@ -22,7 +22,7 @@ pub enum BallTree {
     Leaf(Rc<LeafData>),
 }
 
-impl<'a> BallTree {
+impl BallTree {
     // access fns
     pub fn size(&self) -> usize {
         match self {
@@ -43,15 +43,11 @@ impl<'a> BallTree {
         // the points list already has k points, and nothing in this ball is close enough
         // to the target point to benifit, so we should return before going further with this node
         // this is the step that saves most of time and makes the query O(klog(n))
-        if at_capacity {
-            if self
-                .pivot()
-                .distance_to(neighbors.last().unwrap().borrow().point())
-                - self.radius()
+        if at_capacity
+            && self.pivot().distance_to(target_point) - self.radius()
                 > target_point.distance_to(neighbors.last().unwrap().borrow().point())
-            {
-                return;
-            }
+        {
+            return;
         }
 
         // there are points in this ball that are closer than some of the points in `neighbors`
@@ -91,10 +87,15 @@ impl<'a> BallTree {
                 // nothing better to do here than brute force through the vector of points
 
                 for point in leaf_data.member_data.iter() {
-                    let distance_to_target =
-                        Rc::clone(point).borrow().point().distance_to(target_point);
-                    let pos = if distance_to_target
-                        < target_point.distance_to(neighbors.last().unwrap().borrow().point())
+                    if std::ptr::eq(point.borrow().point(), target_point) {
+                        continue;
+                    }
+
+                    let distance_to_target = point.borrow().point().distance_to(target_point);
+
+                    let pos = if (neighbors.len() < param_k)
+                        || (distance_to_target
+                            < target_point.distance_to(neighbors.last().unwrap().borrow().point()))
                     {
                         Some(neighbors.partition_point(|x| {
                             x.borrow().point().distance_to(target_point) < distance_to_target
@@ -102,14 +103,11 @@ impl<'a> BallTree {
                     } else {
                         None
                     };
-                    match pos {
-                        Some(idx) => {
-                            if neighbors.len() >= param_k {
-                                neighbors.pop();
-                            }
-                            neighbors.insert(idx, Rc::clone(point));
+                    if let Some(idx) = pos {
+                        if neighbors.len() >= param_k {
+                            neighbors.pop();
                         }
-                        None => {}
+                        neighbors.insert(idx, Rc::clone(point));
                     }
                 }
             }
@@ -164,26 +162,26 @@ impl<'a> BallTree {
                     .unwrap(),
             );
 
-            let point_2 = Rc::clone(
-                data.iter()
-                    .max_by(|x, y| {
-                        x.distance_to_sqr(&point_1)
-                            .total_cmp(&y.distance_to_sqr(&point_1))
-                    })
-                    .unwrap(),
-            );
+            //let point_2 = Rc::clone(
+            //data.iter()
+            //.max_by(|x, y| {
+            //x.distance_to_sqr(&point_1)
+            //.total_cmp(&y.distance_to_sqr(&point_1))
+            //})
+            //.unwrap(),
+            //);
 
             data.sort_unstable_by(|x, y| {
                 let xr_1 = x.distance_to_sqr(&point_1);
-                let xr_2 = x.distance_to_sqr(&point_2);
+                //let xr_2 = x.distance_to(&point_2);
 
                 let yr_1 = y.distance_to_sqr(&point_1);
-                let yr_2 = y.distance_to_sqr(&point_2);
+                //let yr_2 = y.distance_to(&point_2);
 
-                let v_1 = (xr_1 - xr_2) / (xr_1 + xr_2);
-                let v_2 = (yr_1 - yr_2) / (yr_1 + yr_2);
+                //let relative_diff_1 = (xr_1 - xr_2) / (xr_1 + xr_2);
+                //let relative_diff_2 = (yr_1 - yr_2) / (yr_1 + yr_2);
 
-                v_1.partial_cmp(&v_2).unwrap_or(std::cmp::Ordering::Equal)
+                xr_1.partial_cmp(&yr_1).unwrap_or(std::cmp::Ordering::Equal)
             });
 
             let half_index = data.len() / 2;
@@ -219,7 +217,7 @@ impl<'a> BallTree {
         data.iter()
             .map(|x| x.distance_to(pivot))
             .max_by(|x, y| x.total_cmp(y))
-            .unwrap_or(std::f64::MAX)
+            .unwrap()
     }
 
     pub fn iter(&self) -> BallTreeItr {
