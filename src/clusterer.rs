@@ -1,4 +1,7 @@
 use crate::ball_tree::BallTree;
+use crate::ball_tree::Metric;
+use crate::ball_tree::MutualReachability;
+
 use crate::point::Point;
 
 use std::cell::RefCell;
@@ -84,13 +87,16 @@ impl Clusterer {
         self.param_k = param_k;
         self
     }
-    
+
     pub fn fit(self) -> ClusterResult {
         let mut data_refs = self.point_cloud.iter().map(Rc::clone).collect();
 
+        let algorithm_timer_start = Instant::now();
+
         println!("Generating spatial indexing tree ...");
         let start = Instant::now();
-        let spatial_index_root = BallTree::new(&mut data_refs, self.leaf_size);
+        let spatial_index_root =
+            BallTree::new(&mut data_refs, Metric::Euclidean, MutualReachability::No, self.leaf_size);
         println!("\tdone in {} s", start.elapsed().as_secs_f32());
 
         println!("Finding {}-nearest neighbors for all data...", self.param_k);
@@ -99,6 +105,11 @@ impl Clusterer {
         println!("\tdone in {} s", start.elapsed().as_secs_f32());
 
         let result = ClusterResult { spatial_index_root };
+
+        println!(
+            "The algorithm took {} s all together",
+            algorithm_timer_start.elapsed().as_secs_f32(),
+        );
 
         result
     }

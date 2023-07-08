@@ -2,19 +2,35 @@ use std::cell::RefCell;
 use std::cmp::max;
 use std::rc::Rc;
 
+use std::cmp::min;
+
 use crate::clusterer::ClusteredPoint;
 use crate::point::Point;
+
+#[derive(Copy, Clone)]
+pub enum Metric {
+    Euclidean,
+}
+#[derive(Copy, Clone)]
+pub enum MutualReachability {
+    Yes,
+    No,
+}
 
 pub struct BranchData {
     children: (Box<BallTree>, Box<BallTree>),
     radius: f64,
     pivot: Point,
+    metric: Metric,
+    mutual_reachability: MutualReachability,
 }
 
 pub struct LeafData {
     member_data: Vec<Rc<RefCell<ClusteredPoint>>>,
     radius: f64,
     pivot: Point,
+    metric: Metric,
+    mutual_reachability: MutualReachability,
 }
 
 pub enum BallTree {
@@ -31,33 +47,95 @@ impl BallTree {
         }
     }
 
+    fn metric(&self) -> Metric {
+        match self {
+            BallTree::Leaf(leaf_data) => leaf_data.metric,
+            BallTree::Branch(branch_data) => branch_data.metric,
+        }
+    }
+
+    fn mutual_reachability(&self) -> MutualReachability {
+        match self {
+            BallTree::Leaf(leaf_data) => leaf_data.mutual_reachability,
+            BallTree::Branch(branch_data) => branch_data.mutual_reachability,
+        }
+    }
+
+    pub fn distance_between_cluster_points(
+        point_1: &Rc<RefCell<ClusteredPoint>>,
+        point_2: &Rc<RefCell<ClusteredPoint>>,
+        metric: Metric,
+        mutual_reachability: MutualReachability,
+    ) -> f64 {
+        BallTree::distance_between_points(
+            &point_1.borrow().point(),
+            &point_2.borrow().point(),
+            metric,
+            mutual_reachability,
+        )
+    }
+
+    pub fn distance_between_points(
+        point_1: &Point,
+        point_2: &Point,
+        metric: Metric,
+        mutual_reachability: MutualReachability,
+    ) -> f64 {
+        let dims = min(point_1.num_dimensions(), point_2.num_dimensions());
+
+        match metric {
+            Metric::Euclidean => (0..dims)
+                .map(|idx| point_1.get(idx) - point_2.get(idx))
+                .map(|diff| diff.powi(2))
+                .sum::<f64>()
+                .sqrt(),
+        }
+    }
+
     /// Iterates over the contained data and sets the neighbors
-    /// This function is called from a clusterer and passes the heavy lifting to the 
+    /// This function is called from a clusterer and passes the heavy lifting to the
     /// `find_nearest_neighbors` function
     pub fn set_k_neareset_neighbors(&self, param_k: usize) {
         for point_ref in self.cluster_points() {
             let mut neighbors: Vec<Rc<RefCell<ClusteredPoint>>> = Vec::new();
-            self.find_k_nearest_neighbors(&mut neighbors, point_ref.borrow().point(), param_k);
+            neighbors.reserve(param_k);
+            self.find_k_nearest_neighbors(&mut neighbors, &point_ref, param_k);
             point_ref.borrow_mut().set_neighbors(neighbors);
         }
     }
 
     /// The result of the search is stored in `neighbors`. The top level call of this function
     /// expects that `neighbors` is empty, and that the top level call originated from the root
-    /// node. The algorithm is efficient for param_k << self.size(), with O( k**2 log (n)). 
+    /// node. The algorithm is efficient for param_k << self.size(), with O( k**2 log (n)).
     fn find_k_nearest_neighbors(
         &self,
         neighbors: &mut Vec<Rc<RefCell<ClusteredPoint>>>,
-        target_point: &Point,
+        target: &Rc<RefCell<ClusteredPoint>>,
         param_k: usize,
     ) {
         let at_capacity: bool = param_k == neighbors.len();
 
+        let target_ref = target.borrow();
+        let target_pnt = target_ref.point();
+
         // the points list already has k points, and nothing in this ball is closer than the
         // already found kth nearest neighbor, so skip this node entirely.
         if at_capacity {
-            let ball_is_too_far = self.pivot().distance_to(target_point) - self.radius()
-                > target_point.distance_to(neighbors.last().unwrap().borrow().point());
+            let distance_to_ball = BallTree::distance_between_points(
+                self.pivot(),
+                &target_pnt,
+                self.metric(),
+                self.mutual_reachability(),
+            ) - self.radius();
+
+            let distance_to_kth_nearest = BallTree::distance_between_cluster_points(
+                &target,
+                neighbors.last().unwrap(),
+                self.metric(),
+                self.mutual_reachability(),
+            );
+
+            let ball_is_too_far = distance_to_ball > distance_to_kth_nearest;
 
             if ball_is_too_far {
                 return;
@@ -68,57 +146,75 @@ impl BallTree {
         match self {
             // branches always defer the heavy lifting to the children
             BallTree::Branch(branch_data) => {
+                // It is more likely that the nearer neighbors are in the nearer balls.
+                // This check makes more of the "at_capacity" skips happen.
+                let distance_to_0 = BallTree::distance_between_points(
+                    branch_data.children.0.pivot(),
+                    target_pnt,
+                    self.metric(),
+                    self.mutual_reachability(),
+                );
+                let distance_to_1 = BallTree::distance_between_points(
+                    branch_data.children.1.pivot(),
+                    target_pnt,
+                    self.metric(),
+                    self.mutual_reachability(),
+                );
 
-                // It is more likely that the nearer neighbors are in the nearer balls. 
-                // This check makes more of the "at_capacity" skips happen. 
-                let child_0_closer = branch_data.children.0.pivot().distance_to(target_point)
-                    < branch_data.children.1.pivot().distance_to(target_point);
-
-                if child_0_closer {
-                    branch_data.children.0.find_k_nearest_neighbors(
-                        neighbors,
-                        target_point,
-                        param_k,
-                    );
-                    branch_data.children.1.find_k_nearest_neighbors(
-                        neighbors,
-                        target_point,
-                        param_k,
-                    );
+                if distance_to_0 < distance_to_1 {
+                    branch_data
+                        .children
+                        .0
+                        .find_k_nearest_neighbors(neighbors, target, param_k);
+                    branch_data
+                        .children
+                        .1
+                        .find_k_nearest_neighbors(neighbors, target, param_k);
                 } else {
-                    branch_data.children.1.find_k_nearest_neighbors(
-                        neighbors,
-                        target_point,
-                        param_k,
-                    );
-                    branch_data.children.0.find_k_nearest_neighbors(
-                        neighbors,
-                        target_point,
-                        param_k,
-                    );
+                    branch_data
+                        .children
+                        .1
+                        .find_k_nearest_neighbors(neighbors, target, param_k);
+                    branch_data
+                        .children
+                        .0
+                        .find_k_nearest_neighbors(neighbors, target, param_k);
                 }
             }
             BallTree::Leaf(leaf_data) => {
                 // there is nothing better to do here than brute force through the vector of points
                 // inserts keep the vector ordered, so the last point is always the furthest away
                 for point in leaf_data.member_data.iter() {
-
                     // don't count the point as it's own neighbor
-                    if std::ptr::eq(point.borrow().point(), target_point) {
+                    if std::ptr::eq(point.borrow().point(), target_pnt) {
                         continue;
                     }
 
-                    let distance_to_target = point.borrow().point().distance_to(target_point);
-                    
+                    let distance_to_target = BallTree::distance_between_cluster_points(
+                        &point,
+                        &target,
+                        self.metric(),
+                        self.mutual_reachability(),
+                    );
+
                     // pos is where we are about to insert `point` into the neighbors. None means
                     // that there are already k neighbors, and `point` isn't closer than any of
                     // them.
                     let pos = if (neighbors.len() < param_k)
                         || (distance_to_target
-                            < target_point.distance_to(neighbors.last().unwrap().borrow().point()))
-                    {
+                            < BallTree::distance_between_cluster_points(
+                                &neighbors.last().unwrap(),
+                                &target,
+                                self.metric(),
+                                self.mutual_reachability(),
+                            )) {
                         Some(neighbors.partition_point(|x| {
-                            x.borrow().point().distance_to(target_point) < distance_to_target
+                            BallTree::distance_between_cluster_points(
+                                x,
+                                &target,
+                                self.metric(),
+                                self.mutual_reachability(),
+                            ) < distance_to_target
                         }))
                     } else {
                         None
@@ -135,9 +231,7 @@ impl BallTree {
         }
     }
 
-
-
-    /// returns the stored value of radius 
+    /// returns the stored value of radius
     fn radius(&self) -> f64 {
         match self {
             BallTree::Leaf(leaf) => leaf.radius,
@@ -152,7 +246,7 @@ impl BallTree {
             BallTree::Branch(branch) => &branch.pivot,
         }
     }
-    
+
     /// returns a pivot calculated from the data
     fn pivot_from_data(data: &[Rc<Point>]) -> Point {
         let dims = data[0].num_dimensions();
@@ -166,7 +260,7 @@ impl BallTree {
         }
         pivot
     }
-    
+
     /// returns a radious calculated from the data
     fn radius_from_data(data: &[Rc<Point>], pivot: &Point) -> f64 {
         data.iter()
@@ -180,7 +274,12 @@ impl BallTree {
     /// sorted in each step, so the `Vec` must be a mutable ref. If the length of data is larger
     /// than leaf_size, a branch is returned containing 2 children ball trees, each with half of
     /// the data.  
-    pub fn new(data: &mut Vec<Rc<Point>>, leaf_size: usize) -> Box<BallTree> {
+    pub fn new(
+        data: &mut Vec<Rc<Point>>,
+        metric: Metric,
+        mutual_reachability: MutualReachability,
+        leaf_size: usize,
+    ) -> Box<BallTree> {
         let pivot = BallTree::pivot_from_data(data);
         let radius = BallTree::radius_from_data(data, &pivot);
 
@@ -192,6 +291,8 @@ impl BallTree {
                     .collect(),
                 pivot,
                 radius,
+                metric,
+                mutual_reachability,
             })))
         } else {
             let random_point = Rc::clone(&data[0]);
@@ -221,17 +322,18 @@ impl BallTree {
 
             Box::new(BallTree::Branch(Rc::new(BranchData {
                 children: (
-                    BallTree::new(&mut vec_0, leaf_size),
-                    BallTree::new(&mut vec_1, leaf_size),
+                    BallTree::new(&mut vec_0, metric, mutual_reachability, leaf_size),
+                    BallTree::new(&mut vec_1, metric, mutual_reachability, leaf_size),
                 ),
                 radius,
                 pivot,
+                metric,
+                mutual_reachability,
             })))
         } // else
     } // new
 
-    
-    /// Returns an iterator over the stored data via a recursive depth first search. 
+    /// Returns an iterator over the stored data via a recursive depth first search.
     pub fn cluster_points(&self) -> BallTreeItr {
         match self {
             BallTree::Branch(tree) => BallTreeItr::Branch(BranchItrData {
@@ -263,7 +365,7 @@ pub enum BallTreeItr {
 /// Iterator for the stored `ClusterPoint`s  
 impl Iterator for BallTreeItr {
     type Item = Rc<RefCell<ClusteredPoint>>;
-    
+
     /// For branches, deffer to child 0 until that returns None, then deffer to child 1. When child
     /// 1 returns None, return None. For leaves, keep track of the index and return a clone of the
     /// appropriate `ClusterPoint`
@@ -303,8 +405,8 @@ mod tests {
 
     use crate::ball_tree::BallTree;
     use crate::Point;
-    use std::rc::Rc;
     use rand::prelude::*;
+    use std::rc::Rc;
 
     #[test]
     fn nearest_neighbors_correct() {
@@ -323,18 +425,27 @@ mod tests {
             ])));
         }
 
-        let ball_tree = BallTree::new(&mut data, leaf_size);
+        let ball_tree = BallTree::new(
+            &mut data,
+            crate::Metric::Euclidean,
+            crate::MutualReachability::No,
+            leaf_size,
+        );
         ball_tree.set_k_neareset_neighbors(param_k);
 
         for target_point_ref in ball_tree.cluster_points() {
             let core_distance = target_point_ref.borrow().core_distance();
             let mut num_points_within_core = 0;
+
             for other_point_ref in ball_tree.cluster_points() {
-                if other_point_ref
-                    .borrow()
-                    .distance_to(&target_point_ref.borrow())
-                    <= core_distance
-                {
+                let distance = BallTree::distance_between_cluster_points(
+                    &other_point_ref,
+                    &target_point_ref,
+                    crate::Metric::Euclidean,
+                    crate::MutualReachability::No,
+                );
+
+                if distance <= core_distance {
                     num_points_within_core += 1;
                 }
             }
