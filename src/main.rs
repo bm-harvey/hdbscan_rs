@@ -1,45 +1,65 @@
-#![allow(dead_code)]
-
 use rand::prelude::*;
 
 use std::time::Instant;
+use std::usize;
 
-mod ball_tree;
-mod clusterer;
-mod point;
-
-use clusterer::Clusterer;
-use point::Point;
+use hdbscan_rs::Clusterer;
+use hdbscan_rs::Point;
 
 use std::rc::Rc;
 
-use crate::clusterer::ClusterResult;
+use clap::Parser;
+
+#[derive(Debug, Parser)]
+#[command(
+    name = "hdbscan",
+    author = "Bryan Harvey",
+    about = "a clustering routine"
+)]
+struct Arg {
+    ///Number of points to generate
+    #[structopt(short, long, default_value = "1000")]
+    num_samples: usize,
+
+    ///Number of nearest neighbors to find
+    #[arg(short = 'k', long = "param_k", default_value = "5")]
+    param_k: usize,
+
+    ///Size of leaf nodes in ball trees
+    #[arg(short, long, default_value = "50")]
+    leaf_size: usize,
+}
 
 fn main() {
-    let num_points: usize = 100_000;
+    let args = Arg::parse();
+
     let mut rng = rand::thread_rng();
 
     let mut data: Vec<Rc<Point>> = vec![];
-    data.reserve(num_points);
 
-    for _ in 0..num_points {
+    for _ in 0..args.num_samples / 2 {
         data.push(Rc::new(Point::from(vec![
-            rng.gen::<f64>(),
+            rng.gen::<f64>() * 10.,
             rng.gen::<f64>(),
         ])));
     }
 
+    for _ in 0..args.num_samples / 2 {
+        data.push(Rc::new(Point::from(vec![
+            rng.gen::<f64>() + 5.,
+            rng.gen::<f64>() + 5.,
+        ])));
+    }
+
     let start = Instant::now();
-    let leaf_size = 10;
-    let param_k = 5;
 
-    let clusterer = Clusterer::new(&data)
-        .with_leaf_size(leaf_size)
-        .with_param_k(param_k);
+    let clusterer = Clusterer::new(data)
+        .with_leaf_size(args.leaf_size)
+        .with_param_k(args.param_k);
 
-    let cluster_result: ClusterResult = clusterer.fit();
+    let cluster_result = clusterer.fit();
 
-    let elapsed_sec = start.elapsed().as_secs();
+    let elapsed_sec = start.elapsed().as_secs_f32();
 
     let ball_tree = cluster_result.ball_tree();
     let mut counter = 0;
@@ -61,6 +81,6 @@ fn main() {
 
     println!(
         "the average core distance for param k = {} is {}.",
-        param_k, average_core_distance
+        args.param_k, average_core_distance
     );
 }

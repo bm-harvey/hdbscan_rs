@@ -11,7 +11,6 @@ type PointRef = Rc<Point>;
 pub struct ClusteredPoint {
     point: PointRef,
     neighbors: Vec<Rc<RefCell<ClusteredPoint>>>,
-    cluster_id: u16,
 }
 
 impl ClusteredPoint {
@@ -19,7 +18,6 @@ impl ClusteredPoint {
         ClusteredPoint {
             point,
             neighbors: vec![],
-            cluster_id: 0,
         }
     }
     pub fn point(&self) -> &Point {
@@ -60,16 +58,16 @@ impl ClusteredPoint {
     }
 }
 
-pub struct Clusterer<'a> {
+pub struct Clusterer {
     // data
-    point_cloud: &'a [Rc<Point>],
+    point_cloud: Vec<Rc<Point>>,
     // parameters
     leaf_size: usize,
     param_k: usize,
 }
 
-impl<'a> Clusterer<'a> {
-    pub fn new(data: &'a [Rc<Point>]) -> Clusterer {
+impl Clusterer {
+    pub fn new(data: Vec<Rc<Point>>) -> Clusterer {
         Clusterer {
             point_cloud: data,
             leaf_size: 50,
@@ -77,16 +75,16 @@ impl<'a> Clusterer<'a> {
         }
     }
 
-    pub fn with_leaf_size(mut self, leaf_size: usize) -> Clusterer<'a> {
+    pub fn with_leaf_size(mut self, leaf_size: usize) -> Clusterer {
         self.leaf_size = leaf_size;
         self
     }
 
-    pub fn with_param_k(mut self, param_k: usize) -> Clusterer<'a> {
+    pub fn with_param_k(mut self, param_k: usize) -> Clusterer {
         self.param_k = param_k;
         self
     }
-
+    
     pub fn fit(self) -> ClusterResult {
         let mut data_refs = self.point_cloud.iter().map(Rc::clone).collect();
 
@@ -111,10 +109,6 @@ pub struct ClusterResult {
 }
 
 impl ClusterResult {
-    pub fn builder(data: &[Rc<Point>]) -> Clusterer {
-        Clusterer::new(data)
-    }
-
     pub fn ball_tree(&self) -> &BallTree {
         &self.spatial_index_root
     }

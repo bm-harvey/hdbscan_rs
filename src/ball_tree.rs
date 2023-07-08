@@ -23,9 +23,6 @@ pub enum BallTree {
 }
 
 impl BallTree {
-    // access fns
-    //
-
     /// Counts all of the `ClusterPoints` in the tree starting from the `self` node
     pub fn size(&self) -> usize {
         match self {
@@ -233,7 +230,8 @@ impl BallTree {
         } // else
     } // new
 
-
+    
+    /// Returns an iterator over the stored data via a recursive depth first search. 
     pub fn cluster_points(&self) -> BallTreeItr {
         match self {
             BallTree::Branch(tree) => BallTreeItr::Branch(BranchItrData {
@@ -262,10 +260,13 @@ pub enum BallTreeItr {
     Branch(BranchItrData),
     Leaf(LeafItrData),
 }
-
+/// Iterator for the stored `ClusterPoint`s  
 impl Iterator for BallTreeItr {
     type Item = Rc<RefCell<ClusteredPoint>>;
-
+    
+    /// For branches, deffer to child 0 until that returns None, then deffer to child 1. When child
+    /// 1 returns None, return None. For leaves, keep track of the index and return a clone of the
+    /// appropriate `ClusterPoint`
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             BallTreeItr::Branch(itr) => {
@@ -302,7 +303,7 @@ mod tests {
 
     use crate::ball_tree::BallTree;
     use crate::Point;
-    use crate::Rc;
+    use std::rc::Rc;
     use rand::prelude::*;
 
     #[test]
