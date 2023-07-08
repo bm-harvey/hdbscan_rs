@@ -1,12 +1,10 @@
+use hdbscan_rs::{BallTree, ClusteredPoint};
 use rand::prelude::*;
 
 use std::time::Instant;
 use std::usize;
 
 use hdbscan_rs::Clusterer;
-use hdbscan_rs::Point;
-
-use std::rc::Rc;
 
 use clap::Parser;
 
@@ -35,20 +33,20 @@ fn main() {
 
     let mut rng = rand::thread_rng();
 
-    let mut data: Vec<Rc<Point>> = vec![];
+    let mut data = vec![];
 
     for _ in 0..args.num_samples / 2 {
-        data.push(Rc::new(Point::from(vec![
+        data.push(ClusteredPoint::from_as_rcc(vec![
             rng.gen::<f64>() * 10.,
             rng.gen::<f64>(),
-        ])));
+        ]));
     }
 
     for _ in 0..args.num_samples / 2 {
-        data.push(Rc::new(Point::from(vec![
+        data.push(ClusteredPoint::from_as_rcc(vec![
             rng.gen::<f64>() + 5.,
             rng.gen::<f64>() + 5.,
-        ])));
+        ]));
     }
 
     let start = Instant::now();
@@ -70,7 +68,7 @@ fn main() {
 
     let average_core_distance = ball_tree
         .cluster_points()
-        .map(|x| x.borrow().core_distance())
+        .map(|x| BallTree::core_distance(&x, hdbscan_rs::Metric::Euclidean))
         .sum::<f64>()
         / (counter as f64);
 
